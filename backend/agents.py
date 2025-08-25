@@ -81,62 +81,81 @@ class ESGAdvisorAgent:
             print("Warning: Invalid configuration file, using defaults")
             return {}
     
-    def _filter_tickers_by_sector(self, tickers: List[str]) -> List[str]:
+    def _filter_symbols_by_sector(self, symbols: List[str]) -> List[str]:
         """
-        Filter tickers based on ESG sector preferences.
+        Filter symbols based on ESG sector preferences using Finnhub data.
         
         Args:
-            tickers: List of ticker symbols
+            symbols: List of stock symbols
             
         Returns:
-            Filtered list of tickers
+            Filtered list of symbols
         """
-        filtered_tickers = []
+        filtered_symbols = []
         
-        for ticker in tickers:
-            try:
-                # Get sector information (simplified - in production you'd cache this)
-                import yfinance as yf
-                yf_ticker = yf.Ticker(ticker)
-                info = yf_ticker.info
-                sector = info.get('sector', 'Unknown')
-                
-                # Apply sector filtering
-                if sector in self.esg_preferences["preferred_sectors"]:
-                    filtered_tickers.append(ticker)
-                elif sector not in self.esg_preferences["avoided_sectors"]:
-                    # Include neutral sectors
-                    filtered_tickers.append(ticker)
+        # Import here to avoid circular imports
+        from esg_scoring import FinnhubClient
+        
+        try:
+            # Initialize Finnhub client
+            api_key = self.config.get("FINNHUB_API_KEY")
+            if not api_key:
+                print("Warning: FINNHUB_API_KEY not found, including all symbols")
+                return symbols
+            
+            finnhub_client = FinnhubClient(api_key, self.config.get("FINNHUB_CONFIG", {}))
+            
+            for symbol in symbols:
+                try:
+                    # Get sector information from Finnhub
+                    profile = finnhub_client.get_company_profile(symbol)
+                    if profile:
+                        sector = profile.get('finnhubIndustry', 'Unknown')
+                        
+                        # Apply sector filtering
+                        if sector in self.esg_preferences["preferred_sectors"]:
+                            filtered_symbols.append(symbol)
+                        elif sector not in self.esg_preferences["avoided_sectors"]:
+                            # Include neutral sectors
+                            filtered_symbols.append(symbol)
+                    else:
+                        # Include symbol if we can't determine sector
+                        filtered_symbols.append(symbol)
+                        
+                except Exception as e:
+                    print(f"Warning: Could not get sector info for {symbol}: {e}")
+                    # Include symbol if we can't determine sector
+                    filtered_symbols.append(symbol)
                     
-            except Exception as e:
-                print(f"Warning: Could not get sector info for {ticker}: {e}")
-                # Include ticker if we can't determine sector
-                filtered_tickers.append(ticker)
+        except Exception as e:
+            print(f"Warning: Failed to initialize Finnhub client: {e}")
+            # Fallback to including all symbols
+            return symbols
         
-        return filtered_tickers
+        return filtered_symbols
     
-    def _calculate_esg_scores_for_tickers(self, tickers: List[str]) -> pd.DataFrame:
+    def _calculate_esg_scores_for_symbols(self, symbols: List[str]) -> pd.DataFrame:
         """
-        Calculate ESG scores for a list of tickers.
+        Calculate ESG scores for a list of symbols using Finnhub.
         
         Args:
-            tickers: List of ticker symbols
+            symbols: List of stock symbols
             
         Returns:
-            DataFrame with ticker and ESG score information
+            DataFrame with symbol and ESG score information
         """
-        print(f"Calculating ESG scores for {len(tickers)} tickers...")
+        print(f"Calculating ESG scores for {len(symbols)} symbols...")
         
         esg_data = []
         
-        for ticker in tickers:
+        for symbol in symbols:
             try:
                 # Calculate detailed ESG score
-                detailed_score = calculate_detailed_esg_score(ticker)
+                detailed_score = calculate_detailed_esg_score(symbol)
                 
                 esg_data.append({
-                    'ticker': ticker,
-                    'company_name': detailed_score.get('company_name', ticker),
+                    'symbol': symbol,
+                    'company_name': detailed_score.get('company_name', symbol),
                     'sector': detailed_score.get('sector', 'Unknown'),
                     'esg_score': detailed_score.get('final_esg_score', 0.0),
                     'market_cap': detailed_score.get('market_cap', 0),
@@ -146,11 +165,11 @@ class ESGAdvisorAgent:
                 })
                 
             except Exception as e:
-                print(f"Warning: Failed to calculate ESG score for {ticker}: {e}")
+                print(f"Warning: Failed to calculate ESG score for {symbol}: {e}")
                 # Add placeholder data for failed calculations
                 esg_data.append({
-                    'ticker': ticker,
-                    'company_name': ticker,
+                    'symbol': symbol,
+                    'company_name': symbol,
                     'sector': 'Unknown',
                     'esg_score': 0.0,
                     'market_cap': 0,
@@ -167,14 +186,14 @@ class ESGAdvisorAgent:
     
     def _select_top_n_by_esg_score(self, esg_df: pd.DataFrame, n: int) -> List[str]:
         """
-        Select top N tickers by ESG score.
+        Select top N symbols by ESG score.
         
         Args:
             esg_df: DataFrame with ESG scores
-            n: Number of top tickers to select
+            n: Number of top symbols to select
             
         Returns:
-            List of top N ticker symbols
+            List of top N symbol strings
         """
         # Filter by minimum ESG score
         filtered_df = esg_df[esg_df['esg_score'] >= self.esg_preferences["min_esg_score"]]
@@ -185,21 +204,21 @@ class ESGAdvisorAgent:
         # Select top N
         top_n_df = filtered_df.head(n)
         
-        return top_n_df['ticker'].tolist()
+        return top_n_df['symbol'].tolist()
     
-    def _assess_portfolio_risk(self, tickers: List[str]) -> Dict[str, Any]:
+    def _assess_portfolio_risk(self, symbols: List[str]) -> Dict[str, Any]:
         """
-        Assess portfolio risk for selected tickers.
+        Assess portfolio risk for selected symbols.
         
         Args:
-            tickers: List of ticker symbols
+            symbols: List of stock symbols
             
         Returns:
             Risk assessment results
         """
         try:
-            print(f"Assessing portfolio risk for {len(tickers)} tickers...")
-            risk_assessment = assess_portfolio(tickers)
+            print(f"Assessing portfolio risk for {len(symbols)} symbols...")
+            risk_assessment = assess_portfolio(symbols)
             return risk_assessment
         except Exception as e:
             print(f"Warning: Portfolio risk assessment failed: {e}")
@@ -208,36 +227,36 @@ class ESGAdvisorAgent:
                     'variance': 0.0,
                     'volatility': 0.0,
                     'sharpe_ratio': 0.0,
-                    'number_of_stocks': len(tickers)
+                    'number_of_stocks': len(symbols)
                 },
                 'error': str(e)
             }
     
-    def _create_recommendation_payload(self, tickers: List[str], esg_df: pd.DataFrame, 
+    def _create_recommendation_payload(self, symbols: List[str], esg_df: pd.DataFrame, 
                                      risk_assessment: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create payload for human approval request.
         
         Args:
-            tickers: List of selected tickers
+            symbols: List of selected symbols
             esg_df: DataFrame with ESG scores
             risk_assessment: Risk assessment results
             
         Returns:
             Formatted recommendation payload
         """
-        # Get ESG scores for selected tickers
-        selected_esg = esg_df[esg_df['ticker'].isin(tickers)]
+        # Get ESG scores for selected symbols
+        selected_esg = esg_df[esg_df['symbol'].isin(symbols)]
         
         # Calculate portfolio allocation (equal weight for simplicity)
-        allocation = [1.0 / len(tickers)] * len(tickers)
+        allocation = [1.0 / len(symbols)] * len(symbols)
         
         # Calculate weighted average ESG score
         weighted_esg_score = np.average(selected_esg['esg_score'], weights=allocation)
         
         # Calculate portfolio metrics
         portfolio_metrics = {
-            'total_stocks': len(tickers),
+            'total_stocks': len(symbols),
             'weighted_esg_score': round(weighted_esg_score, 2),
             'sector_diversity': len(selected_esg['sector'].unique()),
             'market_cap_range': {
@@ -251,9 +270,9 @@ class ESGAdvisorAgent:
             'user_id': 'system',  # System-generated recommendation
             'recommendation_type': 'portfolio',
             'recommendation_data': {
-                'stocks': tickers,
+                'stocks': symbols,
                 'allocation': allocation,
-                'esg_scores': selected_esg[['ticker', 'esg_score', 'sector']].to_dict('records'),
+                'esg_scores': selected_esg[['symbol', 'esg_score', 'sector']].to_dict('records'),
                 'portfolio_metrics': portfolio_metrics,
                 'risk_assessment': risk_assessment,
                 'generated_at': datetime.now().isoformat()
@@ -275,33 +294,33 @@ class ESGAdvisorAgent:
         try:
             print(f"Generating {n} ESG investment recommendations...")
             
-            # Step 1: Select top 50 tickers (or use provided list)
-            candidate_tickers = self.top_tickers.copy()
-            print(f"Analyzing {len(candidate_tickers)} candidate tickers...")
+            # Step 1: Select top 50 symbols (or use provided list)
+            candidate_symbols = self.top_symbols.copy()
+            print(f"Analyzing {len(candidate_symbols)} candidate symbols...")
             
             # Step 2: Filter by sector preferences
-            filtered_tickers = self._filter_tickers_by_sector(candidate_tickers)
-            print(f"After sector filtering: {len(filtered_tickers)} tickers")
+            filtered_symbols = self._filter_symbols_by_sector(candidate_symbols)
+            print(f"After sector filtering: {len(filtered_symbols)} symbols")
             
             # Step 3: Calculate ESG scores for all candidates
-            esg_df = self._calculate_esg_scores_for_tickers(filtered_tickers)
+            esg_df = self._calculate_esg_scores_for_symbols(filtered_symbols)
             
             # Step 4: Select top N by ESG score
-            selected_tickers = self._select_top_n_by_esg_score(esg_df, n)
-            print(f"Selected top {len(selected_tickers)} tickers by ESG score")
+            selected_symbols = self._select_top_n_by_esg_score(esg_df, n)
+            print(f"Selected top {len(selected_symbols)} symbols by ESG score")
             
-            if not selected_tickers:
+            if not selected_symbols:
                 return {
-                    'message': 'No suitable tickers found meeting ESG criteria',
-                    'error': 'Insufficient ESG scores or all tickers filtered out'
+                    'message': 'No suitable symbols found meeting ESG criteria',
+                    'error': 'Insufficient ESG scores or all symbols filtered out'
                 }
             
-            # Step 5: Assess portfolio risk for selected tickers
-            risk_assessment = self._assess_portfolio_risk(selected_tickers)
+            # Step 5: Assess portfolio risk for selected symbols
+            risk_assessment = self._assess_portfolio_risk(selected_symbols)
             
             # Step 6: Create recommendation payload
             recommendation_payload = self._create_recommendation_payload(
-                selected_tickers, esg_df, risk_assessment
+                selected_symbols, esg_df, risk_assessment
             )
             
             # Step 7: Request human approval
@@ -310,12 +329,12 @@ class ESGAdvisorAgent:
             
             # Step 8: Return results based on approval
             if approval_result:
-                # Get final ESG data for selected tickers
-                final_esg_data = esg_df[esg_df['ticker'].isin(selected_tickers)]
+                # Get final ESG data for selected symbols
+                final_esg_data = esg_df[esg_df['symbol'].isin(selected_symbols)]
                 
                 return {
-                    'stocks': selected_tickers,
-                    'scores': final_esg_data[['ticker', 'esg_score', 'sector']].to_dict('records'),
+                    'stocks': selected_symbols,
+                    'scores': final_esg_data[['symbol', 'esg_score', 'sector']].to_dict('records'),
                     'risk': risk_assessment,
                     'portfolio_metrics': recommendation_payload['recommendation_data']['portfolio_metrics'],
                     'approval_status': 'approved',
@@ -408,7 +427,7 @@ class ESGAdvisorAgent:
             'agent_type': 'ESGAdvisorAgent',
             'status': 'active',
             'esg_preferences': self.esg_preferences,
-            'top_tickers_count': len(self.top_tickers),
+            'top_symbols_count': len(self.top_symbols),
             'portia_api_configured': bool(self.portia_api_key),
             'config_loaded': bool(self.config),
             'last_updated': datetime.now().isoformat()

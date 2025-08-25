@@ -8,7 +8,7 @@ investment portfolios and individual securities.
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List, Optional, Tuple
-import yfinance as yf
+import finnhub
 from datetime import datetime, timedelta
 import warnings
 
@@ -79,13 +79,13 @@ def calculate_sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.02) -> 
     return sharpe_ratio
 
 
-def calculate_correlation_matrix(stocks: List[str], period: str = "1y") -> pd.DataFrame:
+def calculate_correlation_matrix(stocks: List[str], finnhub_client: Optional[finnhub.Client] = None) -> pd.DataFrame:
     """
-    Calculate pairwise correlation matrix for a list of stocks.
+    Calculate pairwise correlation matrix for a list of stocks using Finnhub.
     
     Args:
-        stocks: List of stock tickers
-        period: Time period for data (default: "1y")
+        stocks: List of stock symbols
+        finnhub_client: Optional Finnhub client instance
         
     Returns:
         Correlation matrix DataFrame
@@ -93,14 +93,32 @@ def calculate_correlation_matrix(stocks: List[str], period: str = "1y") -> pd.Da
     # Fetch historical data for all stocks
     stock_data = {}
     
-    for ticker in stocks:
+    # Create Finnhub client if not provided
+    if finnhub_client is None:
+        import os
+        import json
+        config_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
         try:
-            yf_ticker = yf.Ticker(ticker)
-            history = yf_ticker.history(period=period)
-            if not history.empty:
-                stock_data[ticker] = history['Close']
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            api_key = config.get("FINNHUB_API_KEY")
+            if not api_key:
+                raise ValueError("FINNHUB_API_KEY not found in configuration")
+            finnhub_client = finnhub.Client(api_key=api_key)
         except Exception as e:
-            print(f"Warning: Failed to fetch data for {ticker}: {e}")
+            raise ValueError(f"Failed to initialize Finnhub client: {e}")
+    
+    for symbol in stocks:
+        try:
+            # Get 1 year of daily data
+            from_timestamp = int((datetime.now() - timedelta(days=365)).timestamp())
+            to_timestamp = int(datetime.now().timestamp())
+            
+            candles = finnhub_client.stock_candles(symbol, 'D', from_timestamp, to_timestamp)
+            if candles and 'c' in candles and candles['c']:
+                stock_data[symbol] = candles['c']
+        except Exception as e:
+            print(f"Warning: Failed to fetch data for {symbol}: {e}")
             continue
     
     if not stock_data:
@@ -199,16 +217,34 @@ def assess_portfolio(stocks: List[str]) -> Dict[str, Any]:
         if not stocks:
             raise ValueError("Stock list cannot be empty")
         
-        # Fetch historical data for all stocks
+        # Fetch historical data for all stocks using Finnhub
         stock_data = {}
-        for ticker in stocks:
+        
+        # Initialize Finnhub client
+        import os
+        import json
+        config_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            api_key = config.get("FINNHUB_API_KEY")
+            if not api_key:
+                raise ValueError("FINNHUB_API_KEY not found in configuration")
+            finnhub_client = finnhub.Client(api_key=api_key)
+        except Exception as e:
+            raise ValueError(f"Failed to initialize Finnhub client: {e}")
+        
+        for symbol in stocks:
             try:
-                yf_ticker = yf.Ticker(ticker)
-                history = yf_ticker.history(period="1y")
-                if not history.empty:
-                    stock_data[ticker] = history['Close']
+                # Get 1 year of daily data
+                from_timestamp = int((datetime.now() - timedelta(days=365)).timestamp())
+                to_timestamp = int(datetime.now().timestamp())
+                
+                candles = finnhub_client.stock_candles(symbol, 'D', from_timestamp, to_timestamp)
+                if candles and 'c' in candles and candles['c']:
+                    stock_data[symbol] = candles['c']
             except Exception as e:
-                print(f"Warning: Failed to fetch data for {ticker}: {e}")
+                print(f"Warning: Failed to fetch data for {symbol}: {e}")
                 continue
         
         if not stock_data:
@@ -225,10 +261,10 @@ def assess_portfolio(stocks: List[str]) -> Dict[str, Any]:
         
         # Calculate individual stock metrics
         individual_metrics = {}
-        for ticker in stocks:
-            if ticker in returns_df.columns:
-                returns = returns_df[ticker]
-                individual_metrics[ticker] = {
+        for symbol in stocks:
+            if symbol in returns_df.columns:
+                returns = returns_df[symbol]
+                individual_metrics[symbol] = {
                     'volatility': calculate_volatility(returns),
                     'sharpe_ratio': calculate_sharpe_ratio(returns),
                     'annual_return': returns.mean() * 252
