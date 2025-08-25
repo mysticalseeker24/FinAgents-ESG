@@ -86,9 +86,9 @@ streamlit run app.py
 ```
 
 The application will be available at:
-- Backend API: http://localhost:8000
+- Backend API: http://localhost:8010
 - Frontend: http://localhost:8501
-- API Documentation: http://localhost:8000/docs
+- API Documentation: http://localhost:8010/docs
 
 ## Project Structure
 

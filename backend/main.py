@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from storage import data_store, UserPreferences, ESGScore, MarketData, Recommendation
+from agents import ESGAdvisorAgent
 
 
 # Load configuration
@@ -43,6 +44,12 @@ app = FastAPI(
 # Load configuration
 config = load_config()
 
+# Initialize ESG Advisor Agent
+esg_agent = ESGAdvisorAgent(
+    portia_api_key=config.get("PORTIA_API_KEY", "demo_key"),
+    base_url=config.get("PORTIA_BASE_URL", "https://api.portialabs.ai")
+)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +75,113 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+# ESG Advisor Agent endpoints
+@app.get("/agent/status")
+async def get_agent_status():
+    """Get ESG Advisor Agent status and configuration."""
+    try:
+        return esg_agent.get_agent_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get agent status: {str(e)}")
+
+
+@app.post("/agent/recommendations")
+async def generate_recommendations(n: int = 10):
+    """
+    Generate ESG-based investment recommendations.
+    
+    Args:
+        n: Number of top recommendations to generate (default: 10)
+    
+    Returns:
+        ESG investment recommendations with risk assessment
+    """
+    try:
+        if n < 1 or n > 50:
+            raise HTTPException(status_code=400, detail="n must be between 1 and 50")
+        
+        recommendations = esg_agent.generate_recommendations(n=n)
+        return recommendations
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")
+
+
+@app.get("/agent/recommendations/history")
+async def get_recommendation_history():
+    """Get history of generated recommendations."""
+    try:
+        history = esg_agent.get_recommendation_history()
+        return {
+            "history": history,
+            "count": len(history),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get recommendation history: {str(e)}")
+
+
+@app.put("/agent/preferences")
+async def update_agent_preferences(preferences: Dict[str, Any]):
+    """
+    Update ESG Advisor Agent preferences.
+    
+    Args:
+        preferences: New preference settings
+    
+    Returns:
+        Success confirmation
+    """
+    try:
+        success = esg_agent.update_esg_preferences(preferences)
+        if success:
+            return {
+                "message": "Agent preferences updated successfully",
+                "preferences": esg_agent.esg_preferences,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to update preferences")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update agent preferences: {str(e)}")
+
+
+@app.get("/agent/preferences")
+async def get_agent_preferences():
+    """Get current ESG Advisor Agent preferences."""
+    try:
+        return {
+            "preferences": esg_agent.esg_preferences,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get agent preferences: {str(e)}")
+
+
+@app.get("/agent/test")
+async def test_agent():
+    """Test endpoint to verify ESG Advisor Agent functionality."""
+    try:
+        # Test with a small number of recommendations
+        test_recommendations = esg_agent.generate_recommendations(n=3)
+        
+        return {
+            "message": "Agent test completed successfully",
+            "test_recommendations": test_recommendations,
+            "agent_status": esg_agent.get_agent_status(),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "message": "Agent test failed",
+            "error": str(e),
+            "agent_status": esg_agent.get_agent_status(),
+            "timestamp": datetime.now().isoformat()
+        }
 
 
 @app.post("/users/{user_id}/preferences")

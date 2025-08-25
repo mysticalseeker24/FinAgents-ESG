@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
-portia-agent-sdk
-yfinance
+portia-sdk-python
+finnhub-python
 pandas
 numpy
 scipy

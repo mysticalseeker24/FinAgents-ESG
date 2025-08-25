@@ -1,7 +1,9 @@
 {
-  "PORTIA_API_KEY": "<YOUR_PORTIA_API_KEY>",
-  "BLACKBOX_API_KEY": "<YOUR_BLACKBOX_API_KEY>",
+  "PORTIA_API_KEY": "prt-NuaEXaW2.isKodHU6iiT8q2gULPhhvWIUBZVFMWeQ",
+  "BLACKBOX_API_KEY": "sk-ouN_CEVJtm9VtGhPA44sBA",
   "BLACKBOX_MODEL": "blackboxai/openai/o4-mini-high",
+  "FINNHUB_API_KEY": "d2m9gd9r01qq6fopk3u0d2m9gd9r01qq6fopk3ug",
+  "FINNHUB_WEBHOOK_SECRET": "d2m9gd9r01qq6fopk3vg",
   "ESG_SCORE_WEIGHTS": {
     "environmental": 0.4,
     "social": 0.35,
@@ -13,9 +15,34 @@
     "market_cap": 0.2,
     "liquidity": 0.2
   },
-  "YFINANCE_INTERVAL": "1d",
+  "FINNHUB_CONFIG": {
+    "requests_per_minute": 20,
+    "delay_between_requests": 3.0,
+    "max_retries": 3,
+    "retry_delay": 2.0,
+    "batch_size": 20,
+    "use_websocket": true,
+    "webhook_enabled": true
+  },
+  "MARKET_SELECTION": {
+    "target_markets": ["US", "EUROPE", "ASIA"],
+    "target_sectors": ["Technology", "Healthcare", "Consumer Defensive", "Financial Services"],
+    "excluded_sectors": ["Energy", "Basic Materials"],
+    "market_cap_range": {
+      "min_billions": 1.0,
+      "max_billions": 1000.0
+    },
+    "stock_types": ["common", "etf", "adr"],
+    "geographic_focus": "US"
+  },
+  "STOCK_FILTERS": {
+    "min_volume": 1000000,
+    "min_price": 5.0,
+    "max_price": 1000.0,
+    "liquidity_threshold": 0.1
+  },
   "PORTIA_BASE_URL": "https://api.portialabs.ai",
   "API_HOST": "0.0.0.0",
-  "API_PORT": 8000,
+  "API_PORT": 8010,
   "FRONTEND_PORT": 8501
 }
