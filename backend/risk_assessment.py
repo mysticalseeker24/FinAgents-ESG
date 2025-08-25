@@ -304,10 +304,10 @@ def assess_portfolio(stocks: List[str]) -> Dict[str, Any]:
 
 def calculate_sector_concentration(stocks: List[str]) -> Dict[str, Any]:
     """
-    Calculate sector concentration for a portfolio.
+    Calculate sector concentration for a portfolio using Finnhub.
     
     Args:
-        stocks: List of stock tickers
+        stocks: List of stock symbols
         
     Returns:
         Dictionary with sector concentration metrics
@@ -315,13 +315,26 @@ def calculate_sector_concentration(stocks: List[str]) -> Dict[str, Any]:
     sector_counts = {}
     sector_market_caps = {}
     
-    for ticker in stocks:
+    # Initialize Finnhub client
+    import os
+    import json
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        api_key = config.get("FINNHUB_API_KEY")
+        if not api_key:
+            raise ValueError("FINNHUB_API_KEY not found in configuration")
+        finnhub_client = finnhub.Client(api_key=api_key)
+    except Exception as e:
+        raise ValueError(f"Failed to initialize Finnhub client: {e}")
+    
+    for symbol in stocks:
         try:
-            yf_ticker = yf.Ticker(ticker)
-            info = yf_ticker.info
+            profile = finnhub_client.company_profile2(symbol=symbol)
             
-            sector = info.get('sector', 'Unknown')
-            market_cap = info.get('marketCap', 0)
+            sector = profile.get('finnhubIndustry', 'Unknown')
+            market_cap = profile.get('marketCapitalization', 0)
             
             # Count stocks by sector
             sector_counts[sector] = sector_counts.get(sector, 0) + 1

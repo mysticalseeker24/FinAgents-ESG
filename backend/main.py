@@ -438,6 +438,122 @@ async def export_data():
         raise HTTPException(status_code=500, detail=f"Failed to export data: {str(e)}")
 
 
+@app.post("/webhook/finnhub")
+async def finnhub_webhook(request: Dict[str, Any]):
+    """
+    Handle Finnhub webhook notifications.
+    
+    Args:
+        request: Webhook payload from Finnhub
+        
+    Returns:
+        Confirmation message
+    """
+    try:
+        # Verify webhook secret
+        config = load_config()
+        webhook_secret = config.get("FINNHUB_WEBHOOK_SECRET")
+        
+        # In production, you would verify the webhook signature here
+        # For now, we'll just log the webhook data
+        
+        print(f"Received Finnhub webhook: {json.dumps(request, indent=2)}")
+        
+        # Process the webhook data based on type
+        webhook_type = request.get("type", "unknown")
+        
+        if webhook_type == "trade":
+            # Handle trade data
+            symbol = request.get("data", {}).get("s", "")
+            price = request.get("data", {}).get("p", 0)
+            volume = request.get("data", {}).get("v", 0)
+            timestamp = request.get("data", {}).get("t", 0)
+            
+            print(f"Trade: {symbol} @ ${price} (vol: {volume}) at {timestamp}")
+            
+        elif webhook_type == "news":
+            # Handle news data
+            headline = request.get("data", {}).get("headline", "")
+            summary = request.get("data", {}).get("summary", "")
+            
+            print(f"News: {headline}")
+            print(f"Summary: {summary}")
+        
+        return {
+            "message": "Webhook received successfully",
+            "type": webhook_type,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process webhook: {str(e)}")
+
+
+@app.get("/finnhub/symbols/{exchange}")
+async def get_finnhub_symbols(exchange: str = "US"):
+    """
+    Get stock symbols for a specific exchange from Finnhub.
+    
+    Args:
+        exchange: Exchange code (US, LSE, TSE, etc.)
+        
+    Returns:
+        List of stock symbols
+    """
+    try:
+        config = load_config()
+        api_key = config.get("FINNHUB_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="FINNHUB_API_KEY not configured")
+        
+        import finnhub
+        client = finnhub.Client(api_key=api_key)
+        
+        symbols = client.stock_symbols(exchange)
+        
+        return {
+            "exchange": exchange,
+            "symbols": symbols,
+            "count": len(symbols),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch symbols: {str(e)}")
+
+
+@app.get("/finnhub/quote/{symbol}")
+async def get_finnhub_quote(symbol: str):
+    """
+    Get real-time quote for a symbol from Finnhub.
+    
+    Args:
+        symbol: Stock symbol
+        
+    Returns:
+        Quote data
+    """
+    try:
+        config = load_config()
+        api_key = config.get("FINNHUB_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="FINNHUB_API_KEY not configured")
+        
+        import finnhub
+        client = finnhub.Client(api_key=api_key)
+        
+        quote = client.quote(symbol)
+        
+        return {
+            "symbol": symbol,
+            "quote": quote,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch quote: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",

@@ -33,6 +33,7 @@ The Smart ESG Investment Advisor combines FastAPI backend services with a Stream
 - Virtual environment (recommended)
 - Portia API key
 - Blackbox AI API key
+- Finnhub API key (free tier available)
 
 ## Setup Instructions
 
@@ -60,6 +61,7 @@ Create a `.env` file in the root directory:
 ```bash
 PORTIA_API_KEY=your_portia_api_key_here
 BLACKBOX_API_KEY=your_blackbox_api_key_here
+FINNHUB_API_KEY=your_finnhub_api_key_here
 ```
 
 ### 5. Configuration Setup
@@ -67,7 +69,8 @@ Update `config/settings.json` with your API keys:
 ```json
 {
   "PORTIA_API_KEY": "your_actual_portia_api_key",
-  "BLACKBOX_API_KEY": "your_actual_blackbox_api_key"
+  "BLACKBOX_API_KEY": "your_actual_blackbox_api_key",
+  "FINNHUB_API_KEY": "your_actual_finnhub_api_key"
 }
 ```
 
@@ -115,7 +118,7 @@ PORTIA-AGENTHACKS/
 - **[FastAPI](https://fastapi.tiangolo.com/)** - Modern, fast web framework for building APIs
 - **[Portia SDK](https://github.com/portiaAI/portia-sdk-python)** - Multi-agent AI framework
 - **[Streamlit](https://streamlit.io/)** - Rapid web app development framework
-- **[yfinance](https://pypi.org/project/yfinance/)** - Yahoo Finance market data
+- **[Finnhub](https://finnhub.io/)** - Professional market data API with real-time feeds
 - **[Plotly](https://plotly.com/python/)** - Interactive plotting library
 - **[Blackbox AI](https://www.blackbox.ai/dashboard/docs)** - LLM provider (o4-mini-high model)
 
@@ -125,6 +128,9 @@ PORTIA-AGENTHACKS/
 - **Hackathon Friendly** - Simple deployment and demo setup
 - **Portable** - Can run anywhere without external dependencies
 - **Fast Development** - Focus on core AI features rather than infrastructure
+- **Professional Data** - Uses Finnhub API for reliable, real-time market data
+- **Rate Limiting** - Built-in rate limiting prevents API quota issues
+- **Webhook Support** - Real-time data updates via webhooks
 
 ## Contributing
 
