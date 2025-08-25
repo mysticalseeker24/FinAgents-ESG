@@ -1,0 +1,333 @@
+"""
+Main FastAPI application for the Smart ESG Investment Advisor.
+
+This module provides the main API endpoints for ESG-based investment recommendations,
+user preferences management, and portfolio analysis.
+"""
+
+import json
+import os
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import uvicorn
+
+from storage import data_store, UserPreferences, ESGScore, MarketData, Recommendation
+
+
+# Load configuration
+def load_config() -> Dict[str, Any]:
+    """Load configuration from settings.json file."""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Configuration file not found")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid configuration file")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="Smart ESG Investment Advisor",
+    description="AI-powered ESG investment recommendations using Portia AI",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Load configuration
+config = load_config()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict this to specific domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint returning API information."""
+    return {
+        "message": "Smart ESG Investment Advisor API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs"
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/users/{user_id}/preferences")
+async def set_user_preferences(
+    user_id: str,
+    preferences: UserPreferences
+):
+    """
+    Set user investment preferences.
+    
+    Args:
+        user_id: Unique identifier for the user
+        preferences: User's investment preferences and constraints
+    
+    Returns:
+        Confirmation message with user ID
+    """
+    try:
+        data_store.add_user_preferences(user_id, preferences)
+        return {
+            "message": "User preferences updated successfully",
+            "user_id": user_id,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update preferences: {str(e)}")
+
+
+@app.get("/users/{user_id}/preferences")
+async def get_user_preferences(user_id: str):
+    """
+    Get user investment preferences.
+    
+    Args:
+        user_id: Unique identifier for the user
+    
+    Returns:
+        User's investment preferences
+    """
+    preferences = data_store.get_user_preferences(user_id)
+    if not preferences:
+        raise HTTPException(status_code=404, detail="User preferences not found")
+    
+    return preferences
+
+
+@app.post("/esg/scores")
+async def add_esg_score(esg_score: ESGScore):
+    """
+    Add or update ESG score for a company.
+    
+    Args:
+        esg_score: ESG scoring data for a company
+    
+    Returns:
+        Confirmation message
+    """
+    try:
+        data_store.add_esg_score(esg_score)
+        return {
+            "message": "ESG score added successfully",
+            "ticker": esg_score.ticker,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add ESG score: {str(e)}")
+
+
+@app.get("/esg/scores/{ticker}")
+async def get_esg_score(ticker: str):
+    """
+    Get ESG score for a specific company.
+    
+    Args:
+        ticker: Stock ticker symbol
+    
+    Returns:
+        ESG score data for the company
+    """
+    esg_score = data_store.get_esg_score(ticker)
+    if not esg_score:
+        raise HTTPException(status_code=404, detail=f"ESG score not found for {ticker}")
+    
+    return esg_score
+
+
+@app.get("/esg/scores")
+async def get_all_esg_scores():
+    """
+    Get all ESG scores.
+    
+    Returns:
+        DataFrame of all ESG scores
+    """
+    return data_store.get_all_esg_scores().to_dict('records')
+
+
+@app.post("/market/data")
+async def add_market_data(market_data: MarketData):
+    """
+    Add or update market data for a company.
+    
+    Args:
+        market_data: Market data for a company
+    
+    Returns:
+        Confirmation message
+    """
+    try:
+        data_store.add_market_data(market_data)
+        return {
+            "message": "Market data added successfully",
+            "ticker": market_data.ticker,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add market data: {str(e)}")
+
+
+@app.get("/market/data/{ticker}")
+async def get_market_data(ticker: str):
+    """
+    Get market data for a specific company.
+    
+    Args:
+        ticker: Stock ticker symbol
+    
+    Returns:
+        Market data for the company
+    """
+    market_data = data_store.get_market_data(ticker)
+    if not market_data:
+        raise HTTPException(status_code=404, detail=f"Market data not found for {ticker}")
+    
+    return market_data
+
+
+@app.get("/recommendations/{user_id}")
+async def get_recommendations(user_id: str):
+    """
+    Get investment recommendations for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+    
+    Returns:
+        List of investment recommendations
+    """
+    recommendations = data_store.get_recommendations(user_id)
+    return {
+        "user_id": user_id,
+        "recommendations": recommendations,
+        "count": len(recommendations),
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.post("/recommendations/{user_id}")
+async def add_recommendation(
+    user_id: str,
+    recommendation: Recommendation
+):
+    """
+    Add investment recommendation for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+        recommendation: Investment recommendation data
+    
+    Returns:
+        Confirmation message
+    """
+    try:
+        data_store.add_recommendation(user_id, recommendation)
+        return {
+            "message": "Recommendation added successfully",
+            "user_id": user_id,
+            "ticker": recommendation.ticker,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add recommendation: {str(e)}")
+
+
+@app.get("/risk/{user_id}")
+async def get_risk_assessment(user_id: str):
+    """
+    Get risk assessment results for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+    
+    Returns:
+        Risk assessment data
+    """
+    risk_data = data_store.get_risk_result(user_id)
+    if not risk_data:
+        raise HTTPException(status_code=404, detail="Risk assessment not found")
+    
+    return risk_data
+
+
+@app.get("/portfolio/{user_id}")
+async def get_portfolio(user_id: str):
+    """
+    Get portfolio data for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+    
+    Returns:
+        Portfolio data
+    """
+    portfolio = data_store.get_portfolio(user_id)
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    return portfolio
+
+
+@app.delete("/users/{user_id}")
+async def clear_user_data(user_id: str):
+    """
+    Clear all data for a specific user.
+    
+    Args:
+        user_id: Unique identifier for the user
+    
+    Returns:
+        Confirmation message
+    """
+    try:
+        data_store.clear_user_data(user_id)
+        return {
+            "message": "User data cleared successfully",
+            "user_id": user_id,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear user data: {str(e)}")
+
+
+@app.get("/data/export")
+async def export_data():
+    """
+    Export all data for backup or debugging.
+    
+    Returns:
+        Complete data export
+    """
+    try:
+        return data_store.export_data()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export data: {str(e)}")
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host=config.get("API_HOST", "0.0.0.0"),
+        port=config.get("API_PORT", 8000),
+        reload=True
+    )

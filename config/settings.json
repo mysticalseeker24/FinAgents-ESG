@@ -1,0 +1,21 @@
+{
+  "PORTIA_API_KEY": "<YOUR_PORTIA_API_KEY>",
+  "BLACKBOX_API_KEY": "<YOUR_BLACKBOX_API_KEY>",
+  "BLACKBOX_MODEL": "blackboxai/openai/o4-mini-high",
+  "ESG_SCORE_WEIGHTS": {
+    "environmental": 0.4,
+    "social": 0.35,
+    "governance": 0.25
+  },
+  "RISK_WEIGHTS": {
+    "sector": 0.3,
+    "volatility": 0.3,
+    "market_cap": 0.2,
+    "liquidity": 0.2
+  },
+  "YFINANCE_INTERVAL": "1d",
+  "PORTIA_BASE_URL": "https://api.portialabs.ai",
+  "API_HOST": "0.0.0.0",
+  "API_PORT": 8000,
+  "FRONTEND_PORT": 8501
+}

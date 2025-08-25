@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+portia-agent-sdk
+yfinance
+pandas
+numpy
+scipy
+streamlit
+plotly
+python-dotenv
+requests

@@ -1,0 +1,35 @@
+version: 1
+defaults:
+  language: python
+  indent: 2 spaces
+  max_line_length: 100
+  lint: flake8
+  type_hints: required
+  docstrings: google
+
+modules:
+  - name: fastapi
+    version: latest
+  - name: portia_agent_sdk
+    version: latest
+  - name: yfinance
+    version: latest
+  - name: pandas
+    version: latest
+  - name: numpy
+    version: latest
+  - name: scipy
+    version: latest
+  - name: streamlit
+    version: latest
+  - name: plotly
+    version: latest
+
+rules:
+  require_module_docstring: true
+  require_function_docstrings: true
+  no_hardcoded_secrets: true
+  enforce_type_annotations: true
+  validate_json_config: config/settings.json
+  skip_hallucinations: true
+  module_structure_enforced: true
